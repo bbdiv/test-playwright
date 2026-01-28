@@ -2,6 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import clients from '../data/clients.json';
+import type { Customer, Customers } from '../types/customer';
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const CLIENT_LOAD_TIMEOUT_MS = 25_000;
@@ -31,7 +32,34 @@ interface FailedClient {
   screenshotPath: string;
 }
 
-async function login(page: Page): Promise<void> {
+
+async function getCustomers(page: Page): Promise<{ legacyCustomers: Customer[]; nextgenCustomers: Customer[] }> {
+  const response = await page.waitForResponse(resp =>
+    resp.url().includes('/customers') && resp.request().method() === 'GET',
+    { timeout: 0 }
+  );
+  const customers = (await response.json()).data as Customers;
+//   console.log('customers', customers);
+
+  const legacyCustomers: Customer[] = [];
+  const nextgenCustomers: Customer[] = [];
+
+  for (const customer of customers as Customers) {
+    const productCodes = customer.products.map(p => p.code);
+    const hasDocs = productCodes.includes('docs');
+    const hasProjetos = productCodes.includes('projetos');
+  
+    if (hasDocs) {
+      nextgenCustomers.push(customer);
+    } else if (hasProjetos) {
+      legacyCustomers.push(customer);
+    }
+  }
+
+  return { legacyCustomers, nextgenCustomers };
+}
+
+async function login(page: Page): Promise<{ legacyCustomers: Customer[]; nextgenCustomers: Customer[] }> {
   const username = process.env.TEST_USERNAME;
   const password = process.env.TEST_PASSWORD;
 
@@ -65,6 +93,12 @@ async function login(page: Page): Promise<void> {
     state: 'visible',
     timeout: LOGIN_TIMEOUT_MS
   });
+    // Step 4: Get customers list and separate into legacy and nextgen
+  const { legacyCustomers, nextgenCustomers } = await getCustomers(page);
+  console.log('legacyCustomers', legacyCustomers);
+  console.log('nextgenCustomers', nextgenCustomers);
+
+  return { legacyCustomers, nextgenCustomers };
 }
 
 async function selectClient(page: Page, clientId: string): Promise<void> {
@@ -157,9 +191,31 @@ async function writeFailureReports(failures: FailedClient[]): Promise<void> {
 test('load client data for all clients', async ({ page }) => {
   const failures: FailedClient[] = [];
 
+const legacyCustomers: Customer[] = [];
+const nextgenCustomers: Customer[] = [];
+  
+
   await test.step('Login', async () => {
-    await login(page);
+    const { legacyCustomers: loginLegacyCustomers, nextgenCustomers: loginNextgenCustomers } = await login(page);
+    legacyCustomers.push(...loginLegacyCustomers);
+    nextgenCustomers.push(...loginNextgenCustomers);
   });
+
+for (const customer of legacyCustomers) {
+  await test.step(`Load legacy customer: ${customer.id}`, async () => {
+    await selectClient(page, customer.id);
+    await waitForClientData(page, customer.id);
+    console.log(`✅ Successfully loaded legacy customer data for: ${customer.id}`);
+  });
+}
+
+for (const customer of nextgenCustomers) {
+  await test.step(`Load nextgen customer: ${customer.id}`, async () => {
+    await selectClient(page, customer.id);
+    await waitForClientData(page, customer.id);
+    console.log(`✅ Successfully loaded nextgen customer data for: ${customer.id}`);
+  });
+}
 
   // for (const clientId of clients as string[]) {
   //   await test.step(`Load client: ${clientId}`, async () => {
