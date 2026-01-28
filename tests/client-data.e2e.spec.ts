@@ -1,8 +1,43 @@
 import { test, expect, Page, type Response as PWResponse } from '@playwright/test';
 import type { Customer, Customers } from '../types/customer';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const CLIENT_LOAD_TIMEOUT_MS = 25_000;
+
+type CustomerLoadResult = {
+  customerId: string;
+  customerName: string;
+  status: 'success' | 'error';
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  errorMessage?: string;
+};
+
+async function writeCustomerLoadReport(
+  results: CustomerLoadResult[]
+): Promise<{ reportPath: string }> {
+  const outputDir = path.resolve(process.cwd(), 'test-results');
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const reportPath = path.join(outputDir, `customer-load-report-${timestamp}.json`);
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    totals: {
+      total: results.length,
+      success: results.filter(r => r.status === 'success').length,
+      error: results.filter(r => r.status === 'error').length
+    },
+    results
+  };
+
+  await fs.writeFile(reportPath, JSON.stringify(payload, null, 2), 'utf8');
+  return { reportPath };
+}
 
 const SELECTORS = {
   login: {
@@ -191,6 +226,7 @@ async function waitForClientData(page: Page): Promise<void> {
 
 test('load client data for all clients', async ({ page }) => {
   const nextgenCustomers: Customer[] = [];
+  const customerLoadResults: CustomerLoadResult[] = [];
 
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
@@ -202,11 +238,64 @@ test('load client data for all clients', async ({ page }) => {
   let firstIteration = true;
   for (const customer of nextgenCustomers) {
     await test.step(`Load nextgen customer: ${customer.name}`, async () => {
-      await selectClient(page, customer, firstIteration);
-      firstIteration = false;
-      await waitForClientData(page);
-      console.log(`✅ Successfully loaded nextgen customer data for: ${customer.id}`);
+      const startedAt = new Date();
+      const startedAtMs = Date.now();
+
+      try {
+        await selectClient(page, customer, firstIteration);
+        firstIteration = false;
+        await waitForClientData(page);
+
+        const finishedAt = new Date();
+        const durationMs = Date.now() - startedAtMs;
+        customerLoadResults.push({
+          customerId: customer.id,
+          customerName: customer.name,
+          status: 'success',
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          durationMs
+        });
+
+        console.log(
+          `Customer ${customer.name} id ${customer.id} loaded successfully`
+        );
+      } catch (error) {
+        const finishedAt = new Date();
+        const durationMs = Date.now() - startedAtMs;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+
+        customerLoadResults.push({
+          customerId: customer.id,
+          customerName: customer.name,
+          status: 'error',
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          durationMs,
+          errorMessage
+        });
+
+        console.log(
+          `Customer ${customer.name} id ${customer.id} failed to load: ${errorMessage}`
+        );
+      }
     });
+  }
+
+  const { reportPath } = await writeCustomerLoadReport(customerLoadResults);
+
+  const successCount = customerLoadResults.filter(r => r.status === 'success')
+    .length;
+  const errorCount = customerLoadResults.filter(r => r.status === 'error').length;
+  console.log(
+    `Customer load report written: ${reportPath} (success: ${successCount}, error: ${errorCount})`
+  );
+
+  if (errorCount > 0) {
+    throw new Error(
+      `One or more customers failed to load. See report: ${reportPath}`
+    );
   }
 });
 
