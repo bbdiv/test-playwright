@@ -27,7 +27,7 @@ The test suite:
 ### Step 1: Install Dependencies
 
 ```powershell
-cd "c:\Users\bb\Documents\autodoc2\test playwright"
+cd "<path-to-this-repo>"
 pnpm install
 ```
 
@@ -73,19 +73,21 @@ The current test selects customers returned from the `/customers` API response (
 
 ## Running Tests
 
-### Run tests in headless mode:
+Playwright runs your browser automation tests for you. These commands launch Playwright Test with different UX options.
+
+### Run tests in headless mode (fastest, no visible browser):
 
 ```powershell
 pnpm test:e2e
 ```
 
-### Run tests with browser visible (headed):
+### Run tests with browser visible (headed, useful to watch what happens):
 
 ```powershell
 pnpm test:e2e:headed
 ```
 
-### Run tests with Playwright UI (recommended for debugging):
+### Run tests with Playwright UI (interactive runner for debugging/inspecting steps):
 
 ```powershell
 pnpm test:e2e:ui
@@ -95,8 +97,6 @@ pnpm test:e2e:ui
 
 ```
 .
-├── data/
-│   └── clients.json              # (unused) legacy client id list
 ├── tests/
 │   └── client-data.e2e.spec.ts   # Main test file
 ├── .env                          # Environment variables (not committed)
