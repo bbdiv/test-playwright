@@ -1,7 +1,4 @@
 import { test, expect, Page, type Response as PWResponse } from '@playwright/test';
-import fs from 'fs';
-import path from 'path';
-import clients from '../data/clients.json';
 import type { Customer, Customers } from '../types/customer';
 
 const LOGIN_TIMEOUT_MS = 30_000;
@@ -17,7 +14,6 @@ const SELECTORS = {
   },
   customerSelector: {
     trigger: '#topbar-customer-select',
-    // searchInput: 'Search options',
     // NOTE: ids can start with a digit, so using `#${id}` requires CSS escaping.
     // Use an attribute selector to avoid CSS.escape issues.
     // Prefer clicking the actual button (the class also appears on an inner div).
@@ -27,14 +23,7 @@ const SELECTORS = {
   customerDataTable: '[data-row-key]'
 };
 
-const CLIENT_DATA_API_PARTIAL_URL = '/api/client-data';
 const SUBFOLDER_API_PARTIAL_URL = '/subfolder';
-
-interface FailedClient {
-  clientId: string;
-  reason: string;
-  screenshotPath: string;
-}
 
 
 async function getCustomersFromResponse(
@@ -123,13 +112,13 @@ async function selectClient(
   await page.click(trigger);
 
   const optionSelector = optionByIdLabel(customer.id);
-  
+
   // Wait for the option to appear in the DOM. Using waitForSelector is more reliable
   // for elements that are dynamically rendered after the dropdown opens.
   try {
-    await page.waitForSelector(optionSelector, { 
-      state: 'attached', 
-      timeout: 10_000 
+    await page.waitForSelector(optionSelector, {
+      state: 'attached',
+      timeout: 10_000
     });
   } catch (error) {
     // Check if the element exists at all
@@ -167,14 +156,14 @@ async function clickCardProjetos(page: Page): Promise<void> {
   await card.click();
 }
 
-async function waitForClientData(page: Page, clientId: string): Promise<void> {
+async function waitForClientData(page: Page): Promise<void> {
   // Wait for the request whose URL contains /subfolder; the UI is rendered from this response.
   const response = await page
     .waitForResponse(
       (resp) => resp.url().includes(SUBFOLDER_API_PARTIAL_URL),
       { timeout: CLIENT_LOAD_TIMEOUT_MS }
     )
-    .catch((err) => {
+    .catch(() => {
       throw new Error(
         `Request to URL containing "${SUBFOLDER_API_PARTIAL_URL}" did not complete within ${CLIENT_LOAD_TIMEOUT_MS}ms. Possible network error or no response.`
       );
@@ -200,110 +189,24 @@ async function waitForClientData(page: Page, clientId: string): Promise<void> {
   await expect(rows.first()).toBeVisible({ timeout: CLIENT_LOAD_TIMEOUT_MS });
 }
 
-function slugify(value: string): string {
-  return value
-    .replace(/[^a-zA-Z0-9-_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toLowerCase();
-}
-
-async function writeFailureReports(failures: FailedClient[]): Promise<void> {
-  if (!failures.length) {
-    console.log('All clients loaded successfully. No failure report generated.');
-    return;
-  }
-
-  const resultsDir = path.resolve('test-results');
-  await fs.promises.mkdir(resultsDir, { recursive: true });
-
-  const jsonPath = path.join(resultsDir, 'client-load-failures.json');
-  const csvPath = path.join(resultsDir, 'client-load-failures.csv');
-
-  await fs.promises.writeFile(jsonPath, JSON.stringify(failures, null, 2), 'utf-8');
-
-  const csvHeader = 'clientId,reason,screenshotPath';
-  const csvRows = failures.map((f) =>
-    [
-      JSON.stringify(f.clientId),
-      JSON.stringify(f.reason.replace(/\r?\n/g, ' ')),
-      JSON.stringify(f.screenshotPath)
-    ].join(',')
-  );
-  const csvContent = [csvHeader, ...csvRows].join('\n');
-  await fs.promises.writeFile(csvPath, csvContent, 'utf-8');
-
-  console.log(
-    `Client load failures: ${failures.length} clients.\nJSON: ${jsonPath}\nCSV: ${csvPath}`
-  );
-}
-
 test('load client data for all clients', async ({ page }) => {
-  const failures: FailedClient[] = [];
-
-const legacyCustomers: Customer[] = [];
-const nextgenCustomers: Customer[] = [];
-  
+  const nextgenCustomers: Customer[] = [];
 
   await test.step('Login', async () => {
-    const { legacyCustomers: loginLegacyCustomers, nextgenCustomers: loginNextgenCustomers } = await login(page);
-    legacyCustomers.push(...loginLegacyCustomers);
-    // nextgenCustomers.push(...loginNextgenCustomers);
+    const { nextgenCustomers: loginNextgenCustomers } = await login(page);
     nextgenCustomers.push(loginNextgenCustomers[0]);
     nextgenCustomers.push(loginNextgenCustomers[1]);
     console.log('nextgenCustomers', nextgenCustomers);
   });
 
-// for (const customer of legacyCustomers) {
-//   await test.step(`Load legacy customer: ${customer.id}`, async () => {
-//     await selectClient(page, customer.id);
-//     await waitForClientData(page, customer.id);
-//     console.log(`✅ Successfully loaded legacy customer data for: ${customer.id}`);
-//   });
-// }
-
-let firstIteration = true;
-for (const customer of nextgenCustomers) {
-  await test.step(`Load nextgen customer: ${customer.name}`, async () => {
-    await selectClient(page, customer, firstIteration);
-    firstIteration = false;
-    await waitForClientData(page, customer.id);
-    console.log(`✅ Successfully loaded nextgen customer data for: ${customer.id}`);
-  });
-}
-
-  // for (const clientId of clients as string[]) {
-  //   await test.step(`Load client: ${clientId}`, async () => {
-  //     try {
-  //       await selectClient(page, clientId);
-  //       await waitForClientData(page, clientId);
-  //       console.log(`✅ Successfully loaded client data for: ${clientId}`);
-  //     } catch (error: any) {
-  //       const reason =
-  //         error instanceof Error ? error.message : `Unknown error: ${String(error)}`;
-
-  //       const resultsDir = path.resolve('test-results', 'client-screenshots');
-  //       await fs.promises.mkdir(resultsDir, { recursive: true });
-  //       const filename = `client-${slugify(clientId)}.png`;
-  //       const screenshotPath = path.join(resultsDir, filename);
-
-  //       await page.screenshot({ path: screenshotPath, fullPage: true });
-
-  //       console.error(`❌ Failed to load client data for: ${clientId}`);
-  //       console.error(`   Reason: ${reason}`);
-  //       console.error(`   Screenshot: ${screenshotPath}`);
-
-  //       failures.push({
-  //         clientId,
-  //         reason,
-  //         screenshotPath
-  //       });
-  //     }
-  //   });
-  // }
-
-  // await test.step('Generate failure reports', async () => {
-  //   await writeFailureReports(failures);
-  // });
+  let firstIteration = true;
+  for (const customer of nextgenCustomers) {
+    await test.step(`Load nextgen customer: ${customer.name}`, async () => {
+      await selectClient(page, customer, firstIteration);
+      firstIteration = false;
+      await waitForClientData(page);
+      console.log(`✅ Successfully loaded nextgen customer data for: ${customer.id}`);
+    });
+  }
 });
 

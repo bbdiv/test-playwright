@@ -5,16 +5,16 @@ End-to-end automation script using Playwright, TypeScript, and pnpm for testing 
 ## Overview
 
 This project automates the testing of a web application that:
+
 - Requires authentication (email + password)
 - Allows switching between ~1,000 clients via a dropdown/select component
 - Loads client-specific data via API after client selection
 
 The test suite:
+
 - Logs in once
-- Iterates through all clients
-- Validates data loading for each client
-- Captures screenshots on failures
-- Generates JSON and CSV failure reports
+- Iterates through selected customers
+- Validates data loading after selection
 
 ## Prerequisites
 
@@ -34,11 +34,13 @@ pnpm install
 ### Step 2: Install Playwright Browsers
 
 Install all browsers:
+
 ```powershell
 pnpm exec playwright install
 ```
 
 Or install only Chromium (faster, recommended):
+
 ```powershell
 pnpm exec playwright install chromium
 ```
@@ -65,33 +67,26 @@ $env:TEST_USERNAME = "your-email@example.com"
 $env:TEST_PASSWORD = "your-password"
 ```
 
-### Client List
+### Customer Selection
 
-Edit `data/clients.json` to include all client identifiers:
-
-```json
-[
-  "3P INSTALAÇOES",
-  "A.C. CAMARGO",
-  "Autodoc NextGen"
-]
-```
-
-Add all ~1,000 clients to this array.
+The current test selects customers returned from the `/customers` API response (see `tests/client-data.e2e.spec.ts`).
 
 ## Running Tests
 
 ### Run tests in headless mode:
+
 ```powershell
 pnpm test:e2e
 ```
 
 ### Run tests with browser visible (headed):
+
 ```powershell
 pnpm test:e2e:headed
 ```
 
 ### Run tests with Playwright UI (recommended for debugging):
+
 ```powershell
 pnpm test:e2e:ui
 ```
@@ -101,7 +96,7 @@ pnpm test:e2e:ui
 ```
 .
 ├── data/
-│   └── clients.json              # List of client identifiers
+│   └── clients.json              # (unused) legacy client id list
 ├── tests/
 │   └── client-data.e2e.spec.ts   # Main test file
 ├── .env                          # Environment variables (not committed)
@@ -113,27 +108,14 @@ pnpm test:e2e:ui
 
 ## Test Output
 
-### Screenshots
-Failed client screenshots are saved to:
-```
-test-results/client-screenshots/client-{client-id}.png
-```
-
-### Failure Reports
-After test completion, failure reports are generated in:
-- **JSON**: `test-results/client-load-failures.json`
-- **CSV**: `test-results/client-load-failures.csv`
-
-Both files contain:
-- `clientId`: The client identifier that failed
-- `reason`: Error message explaining the failure
-- `screenshotPath`: Path to the screenshot
+Playwright outputs traces/reports according to `playwright.config.ts`.
 
 ## Troubleshooting
 
 ### Issue: `'playwright' is not recognized`
 
 **Solution:** Install dependencies and browsers:
+
 ```powershell
 pnpm install
 pnpm exec playwright install chromium
@@ -142,6 +124,7 @@ pnpm exec playwright install chromium
 ### Issue: `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`
 
 **Solution 1:** Clean install:
+
 ```powershell
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
 Remove-Item pnpm-lock.yaml -ErrorAction SilentlyContinue
@@ -149,6 +132,7 @@ pnpm install
 ```
 
 **Solution 2:** Set CI environment variable:
+
 ```powershell
 $env:CI = "true"
 pnpm install
@@ -157,6 +141,7 @@ pnpm install
 ### Issue: Test fails to find selectors
 
 **Solution:** Update selectors in `tests/client-data.e2e.spec.ts`:
+
 - Inspect your app's HTML elements in DevTools (F12)
 - Update the `SELECTORS` object with correct selectors:
   - `login.emailInput`: Email input selector
@@ -170,15 +155,17 @@ pnpm install
 ### Issue: Test times out waiting for elements
 
 **Solution:** Adjust timeouts in `tests/client-data.e2e.spec.ts`:
+
 ```typescript
-const LOGIN_TIMEOUT_MS = 30_000;        // Increase if needed
-const CLIENT_LOAD_TIMEOUT_MS = 25_000;  // Increase if needed
+const LOGIN_TIMEOUT_MS = 30_000; // Increase if needed
+const CLIENT_LOAD_TIMEOUT_MS = 25_000; // Increase if needed
 ```
 
 Or in `playwright.config.ts`:
+
 ```typescript
-const ACTION_TIMEOUT_MS = 15_000;        // Individual action timeout
-const NAVIGATION_TIMEOUT_MS = 30_000;    // Navigation timeout
+const ACTION_TIMEOUT_MS = 15_000; // Individual action timeout
+const NAVIGATION_TIMEOUT_MS = 30_000; // Navigation timeout
 ```
 
 ## Customization
@@ -189,11 +176,12 @@ All selectors are centralized in the `SELECTORS` object at the top of `tests/cli
 
 ### API Endpoint
 
-Update `CLIENT_DATA_API_PARTIAL_URL` in `tests/client-data.e2e.spec.ts` to match your actual API endpoint pattern.
+Update `SUBFOLDER_API_PARTIAL_URL` in `tests/client-data.e2e.spec.ts` to match your actual API endpoint pattern.
 
 ### Timeouts
 
 Adjust timeouts based on your application's performance:
+
 - Fast apps: Reduce timeouts
 - Slow apps: Increase timeouts
 
@@ -207,11 +195,11 @@ Adjust timeouts based on your application's performance:
 
 ## Scripts Reference
 
-| Script | Description |
-|--------|-------------|
-| `pnpm test:e2e` | Run tests in headless mode |
-| `pnpm test:e2e:headed` | Run tests with visible browser |
-| `pnpm test:e2e:ui` | Run tests with Playwright UI (interactive) |
+| Script                 | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `pnpm test:e2e`        | Run tests in headless mode                 |
+| `pnpm test:e2e:headed` | Run tests with visible browser             |
+| `pnpm test:e2e:ui`     | Run tests with Playwright UI (interactive) |
 
 ## License
 
