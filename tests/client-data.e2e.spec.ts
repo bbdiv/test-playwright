@@ -194,7 +194,7 @@ async function clickCardProjetos(page: Page): Promise<void> {
 }
 
 async function waitForClientData(page: Page): Promise<void> {
-  // Wait for the request whose URL contains /subfolder; the UI is rendered from this response.
+  // Primary: page loaded when GET subfolder succeeds. Second confirmation: rows or empty image.
   const response = await page
     .waitForResponse(
       (resp) => resp.url().includes(SUBFOLDER_API_PARTIAL_URL),
@@ -219,29 +219,31 @@ async function waitForClientData(page: Page): Promise<void> {
     );
   }
 
-  try {
-    // `[data-row-key]` matches many rows, so avoid strict-mode violations by asserting
-    // there is at least one row, and that the first row is visible.
-    const rows = page.locator(SELECTORS.customerDataTable);
-    await expect(rows).not.toHaveCount(0, { timeout: CLIENT_LOAD_TIMEOUT_MS });
-    await expect(rows.first()).toBeVisible({ timeout: CLIENT_LOAD_TIMEOUT_MS });
-  } catch {
-    // Selector not found or list is empty: check for Ant Design empty state (page rendered but empty).
-    const emptyState = page.locator(SELECTORS.emptyStateImage);
-    const emptyStateVisible = await emptyState
-      .first()
-      .isVisible()
-      .catch(() => false);
-    if (emptyStateVisible) {
-      // Page rendered with empty list; consider success.
-      return;
+  // Page loaded when subfolder responded OK. Second confirmation: UI shows either rows or empty state.
+  const CONFIRMATION_TIMEOUT_MS = 5_000;
+  const rows = page.locator(SELECTORS.customerDataTable);
+  const emptyState = page.locator(SELECTORS.emptyStateImage).first();
+
+  const deadline = Date.now() + CONFIRMATION_TIMEOUT_MS;
+  const pollMs = 300;
+
+  while (Date.now() < deadline) {
+    try {
+      if (await rows.first().isVisible()) {
+        return;
+      }
+      if (await emptyState.isVisible()) {
+        return;
+      }
+    } catch {
+      // Transient failure (e.g. element detached); continue polling until deadline.
     }
-    // Table exists but first row not visible in time, or other failure — rethrow.
-    throw new Error(
-      `Could not find or verify selector "${SELECTORS.customerDataTable}". ` +
-        `If the list is intentionally empty, this is handled as success; otherwise the table may not have loaded.`
-    );
+    await new Promise((r) => setTimeout(r, pollMs));
   }
+
+  throw new Error(
+    `Subfolder loaded but within ${CONFIRMATION_TIMEOUT_MS}ms neither data rows ("${SELECTORS.customerDataTable}") nor empty state ("${SELECTORS.emptyStateImage}") appeared.`
+  );
 }
 
 test('load client data for all clients', async ({ page }) => {
@@ -251,8 +253,8 @@ test('load client data for all clients', async ({ page }) => {
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
     // nextgenCustomers.push(loginNextgenCustomers[0]);
-    nextgenCustomers.push(loginNextgenCustomers[3]);
-    // nextgenCustomers.push(...loginNextgenCustomers);
+    // nextgenCustomers.push(loginNextgenCustomers[3]);
+    nextgenCustomers.push(...loginNextgenCustomers);
     console.log('nextgenCustomers', nextgenCustomers);
   });
 
@@ -281,6 +283,7 @@ test('load client data for all clients', async ({ page }) => {
         console.log(
           `Customer ${customer.name} id ${customer.id} loaded successfully`
         );
+        await test.step('Result: success', () => {});
       } catch (error) {
         const finishedAt = new Date();
         const durationMs = Date.now() - startedAtMs;
@@ -300,6 +303,7 @@ test('load client data for all clients', async ({ page }) => {
         console.log(
           `Customer ${customer.name} id ${customer.id} failed to load: ${errorMessage}`
         );
+        await test.step('Result: failed', () => {});
       }
     });
   }
