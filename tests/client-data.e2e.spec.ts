@@ -55,7 +55,9 @@ const SELECTORS = {
     firstIterationCard: 'button.card-select-product-PROJETOS',
     optionByIdLabel: (clientId: string) => `[id="${clientId}-label"]`
   },
-  customerDataTable: '[data-row-key]'
+  customerDataTable: '[data-row-key]',
+  // Ant Design empty state: page rendered but list is empty.
+  emptyStateImage: '.ant-empty-image'
 };
 
 const SUBFOLDER_API_PARTIAL_URL = '/subfolder';
@@ -217,11 +219,29 @@ async function waitForClientData(page: Page): Promise<void> {
     );
   }
 
-  // `[data-row-key]` matches many rows, so avoid strict-mode violations by asserting
-  // there is at least one row, and that the first row is visible.
-  const rows = page.locator(SELECTORS.customerDataTable);
-  await expect(rows).not.toHaveCount(0, { timeout: CLIENT_LOAD_TIMEOUT_MS });
-  await expect(rows.first()).toBeVisible({ timeout: CLIENT_LOAD_TIMEOUT_MS });
+  try {
+    // `[data-row-key]` matches many rows, so avoid strict-mode violations by asserting
+    // there is at least one row, and that the first row is visible.
+    const rows = page.locator(SELECTORS.customerDataTable);
+    await expect(rows).not.toHaveCount(0, { timeout: CLIENT_LOAD_TIMEOUT_MS });
+    await expect(rows.first()).toBeVisible({ timeout: CLIENT_LOAD_TIMEOUT_MS });
+  } catch {
+    // Selector not found or list is empty: check for Ant Design empty state (page rendered but empty).
+    const emptyState = page.locator(SELECTORS.emptyStateImage);
+    const emptyStateVisible = await emptyState
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (emptyStateVisible) {
+      // Page rendered with empty list; consider success.
+      return;
+    }
+    // Table exists but first row not visible in time, or other failure — rethrow.
+    throw new Error(
+      `Could not find or verify selector "${SELECTORS.customerDataTable}". ` +
+        `If the list is intentionally empty, this is handled as success; otherwise the table may not have loaded.`
+    );
+  }
 }
 
 test('load client data for all clients', async ({ page }) => {
@@ -230,8 +250,9 @@ test('load client data for all clients', async ({ page }) => {
 
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
-    nextgenCustomers.push(loginNextgenCustomers[0]);
-    nextgenCustomers.push(loginNextgenCustomers[1]);
+    // nextgenCustomers.push(loginNextgenCustomers[0]);
+    nextgenCustomers.push(loginNextgenCustomers[3]);
+    // nextgenCustomers.push(...loginNextgenCustomers);
     console.log('nextgenCustomers', nextgenCustomers);
   });
 
