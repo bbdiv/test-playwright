@@ -60,6 +60,12 @@ const SELECTORS = {
     trigger:'a[href="/projetos/reports"]',
     triggerShortcut:  'Ctrl+Shift+2'
   },
+  recentActionsPage: {
+    trigger: 'a[href="/projetos/activities"]',
+    triggerShortcut: 'Ctrl+Shift+5',
+    logCard: '.log-card-container',
+    emptyFolderIcon: 'img[alt="Empty Folder Icon"]'
+  },
   customerDataTable: '[data-row-key]',
   // Ant Design empty state: page rendered but list is empty.
   emptyStateImage: '.ant-empty-image'
@@ -295,6 +301,45 @@ async function checkReportsPage(page: Page): Promise<void> {
   await page.locator(`[data-row-key="${firstId}"]`).waitFor({ state: 'visible', timeout: 5_000 });
 }
 
+async function checkRecentActions(page: Page): Promise<void> {
+  const responsePromise = page.waitForResponse(resp => {
+    const url = resp.url();
+    const contentType = (resp.headers()['content-type'] ?? '').toLowerCase();
+    return (
+      url.includes('/history') &&
+      resp.request().method() === 'GET' &&
+      contentType.includes('application/json')
+    );
+  });
+
+  const link = page.locator(SELECTORS.recentActionsPage.trigger);
+  await link.waitFor({ state: 'visible', timeout: 5_000 });
+  await link.click();
+
+  const response = await responsePromise;
+  if (!response.ok()) {
+    throw new Error(`Recent actions request failed: ${response.status()}`);
+  }
+
+  const body = await response.text();
+  let fileHistories: unknown[];
+  try {
+    fileHistories = (JSON.parse(body) as { fileHistories?: unknown[] }).fileHistories ?? [];
+  } catch {
+    throw new Error(`Recent actions response is not valid JSON (URL: ${response.url()})`);
+  }
+
+  if (!Array.isArray(fileHistories) || fileHistories.length === 0) {
+    await page.locator(SELECTORS.recentActionsPage.emptyFolderIcon).waitFor({ state: 'visible', timeout: 5_000 });
+    return;
+  }
+
+  await page.locator(SELECTORS.recentActionsPage.logCard).first().waitFor({ state: 'visible', timeout: 5_000 });
+}
+
+
+
+
 test('load client data for all clients', async ({ page }) => {
   const nextgenCustomers: Customer[] = [];
   const customerLoadResults: CustomerLoadResult[] = [];
@@ -319,6 +364,9 @@ test('load client data for all clients', async ({ page }) => {
         await waitForClientData(page);
 
         await checkReportsPage(page);
+        await checkRecentActions(page);
+
+
 
         const finishedAt = new Date();
         const durationMs = Date.now() - startedAtMs;
