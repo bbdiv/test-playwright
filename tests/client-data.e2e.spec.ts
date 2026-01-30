@@ -56,6 +56,10 @@ const SELECTORS = {
     firstIterationCard: 'button.card-select-product-PROJETOS',
     optionByIdLabel: (clientId: string) => `[id="${clientId}-label"]`
   },
+  reportsPage: {
+    trigger:'a[href="/projetos/reports"]',
+    triggerShortcut:  'Ctrl+Shift+2'
+  },
   customerDataTable: '[data-row-key]',
   // Ant Design empty state: page rendered but list is empty.
   emptyStateImage: '.ant-empty-image'
@@ -247,6 +251,56 @@ async function waitForClientData(page: Page): Promise<void> {
   );
 }
 
+async function checkReportsPage(page: Page): Promise<void> {
+  // Only match the response that returns JSON (Content-Type: application/json), not the HTML page
+  const responsePromise = page.waitForResponse(resp => {
+    const url = resp.url();
+    const contentType = (resp.headers()['content-type'] ?? '').toLowerCase();
+    return (
+      url.includes('/reports') &&
+      resp.request().method() === 'GET' &&
+      contentType.includes('application/json')
+    );
+  });
+
+  const link = page.locator(SELECTORS.reportsPage.trigger);
+  await link.waitFor({ state: 'visible', timeout: 5_000 });
+  await link.click();
+
+  const response = await responsePromise;
+  if (!response.ok()) {
+    throw new Error(`Reports request failed: ${response.status()}`);
+  }
+
+  console.log('response json',await response.json());
+
+  const reportsData = await response.json();
+
+  const firstId = reportsData.data[0].id;
+
+  if(!firstId) {
+    throw new Error('Reports response has no array or first item has no id');
+  }
+
+  await page.locator(`[data-row-key="${firstId}"]`).waitFor({ state: 'visible', timeout: 5_000 });
+
+  // const body = await response.text();
+  // let data: unknown;
+  // try {
+  //   data = JSON.parse(body);
+  // } catch {
+  //   throw new Error(`Reports response is not valid JSON (URL: ${response.url()})`);
+  // }
+
+  // const list = Array.isArray(data) ? data : (data as { data?: unknown[] })?.data;
+  // const firstId = list?.[0]?.id;
+  // if (!list?.length || firstId == null) {
+  //   throw new Error('Reports response has no array or first item has no id');
+  // }
+
+  await page.locator(`[data-row-key="${firstId}"]`).waitFor({ state: 'visible', timeout: 5_000 });
+}
+
 test('load client data for all clients', async ({ page }) => {
   const nextgenCustomers: Customer[] = [];
   const customerLoadResults: CustomerLoadResult[] = [];
@@ -269,6 +323,8 @@ test('load client data for all clients', async ({ page }) => {
         await selectClient(page, customer, firstIteration);
         firstIteration = false;
         await waitForClientData(page);
+
+        await checkReportsPage(page);
 
         const finishedAt = new Date();
         const durationMs = Date.now() - startedAtMs;
