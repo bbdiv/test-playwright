@@ -21,4 +21,3 @@ export type Customer = {
 };
 
 export type Customers = Customer[];
-

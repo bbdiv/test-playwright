@@ -9,7 +9,7 @@
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
-    "types": ["node", "playwright"]
+    "types": ["node", "@playwright/test"]
   },
   "include": ["tests/**/*", "playwright.config.ts"]
 }
