@@ -272,31 +272,25 @@ async function checkReportsPage(page: Page): Promise<void> {
     throw new Error(`Reports request failed: ${response.status()}`);
   }
 
-  console.log('response json',await response.json());
-
-  const reportsData = await response.json();
-
-  const firstId = reportsData.data[0].id;
-
-  if(!firstId) {
-    throw new Error('Reports response has no array or first item has no id');
+  const body = await response.text();
+  let data: unknown[];
+  try {
+    data = (JSON.parse(body) as { data?: unknown[] }).data ?? [];
+  } catch {
+    throw new Error(`Reports response is not valid JSON (URL: ${response.url()})`);
   }
 
-  await page.locator(`[data-row-key="${firstId}"]`).waitFor({ state: 'visible', timeout: 5_000 });
+  const emptyStateLocator = page.locator(SELECTORS.emptyStateImage).first();
 
-  // const body = await response.text();
-  // let data: unknown;
-  // try {
-  //   data = JSON.parse(body);
-  // } catch {
-  //   throw new Error(`Reports response is not valid JSON (URL: ${response.url()})`);
-  // }
+  if (!Array.isArray(data) || data.length === 0) {
+    await emptyStateLocator.waitFor({ state: 'visible', timeout: 5_000 });
+    return;
+  }
 
-  // const list = Array.isArray(data) ? data : (data as { data?: unknown[] })?.data;
-  // const firstId = list?.[0]?.id;
-  // if (!list?.length || firstId == null) {
-  //   throw new Error('Reports response has no array or first item has no id');
-  // }
+  const firstId = data[0]?.id;
+  if (firstId == null) {
+    throw new Error('First report item has no id');
+  }
 
   await page.locator(`[data-row-key="${firstId}"]`).waitFor({ state: 'visible', timeout: 5_000 });
 }

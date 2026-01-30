@@ -10,8 +10,8 @@ const staticData: Partial<Customer>[] = [
 //     name: 'DEMAC',
 //   }
   {
-    id: '65203ac2cf29b9adf10d8d15',
-    name: 'Autodoc NextGen'
+    id: "63f927501c619f6f0f3ba4f3",
+    name: "Autodoc",
   }
 ]
 
