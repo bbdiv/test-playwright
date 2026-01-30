@@ -2,6 +2,7 @@ import { test, expect, Page, type Response as PWResponse } from '@playwright/tes
 import type { Customer, Customers } from '../types/customer';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import staticData from './pages/staticData';
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const CLIENT_LOAD_TIMEOUT_MS = 25_000;
@@ -252,10 +253,10 @@ test('load client data for all clients', async ({ page }) => {
 
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
-    // nextgenCustomers.push(loginNextgenCustomers[0]);
-    // nextgenCustomers.push(loginNextgenCustomers[3]);
-    nextgenCustomers.push(...loginNextgenCustomers);
-    console.log('nextgenCustomers', nextgenCustomers);
+    // ler lista de clientes do login(/customers)
+    // nextgenCustomers.push(...loginNextgenCustomers);
+    //ler lista de clientes estáticos
+    nextgenCustomers.push(...staticData as Customer[]);
   });
 
   let firstIteration = true;
