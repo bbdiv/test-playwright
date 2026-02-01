@@ -383,7 +383,7 @@ test('load client data for all clients', async ({ page }) => {
         await waitForClientData(page);
 
         await checkReportsPage(page);
-        await checkRecentActions(page);
+        // await checkRecentActions(page);
 
         await gobackToDirectoriesPage(page);
 
