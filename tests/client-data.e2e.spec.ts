@@ -112,6 +112,8 @@ async function login(
 
   await page.goto('/', { waitUntil: 'networkidle', timeout: LOGIN_TIMEOUT_MS });
 
+
+  
   // Step 1: Email
   await page.fill(SELECTORS.login.emailInput, username);
 
@@ -124,6 +126,11 @@ async function login(
   await page.waitForSelector(SELECTORS.login.passwordInput, {
     state: 'visible',
     timeout: LOGIN_TIMEOUT_MS
+  });
+
+
+  await page.evaluate(() => {
+    localStorage.setItem("DISABLED_MAINTENANCE_MODE", true);
   });
 
   await page.fill(SELECTORS.login.passwordInput, password);
@@ -343,6 +350,8 @@ async function checkRecentActions(page: Page): Promise<void> {
 test('load client data for all clients', async ({ page }) => {
   const nextgenCustomers: Customer[] = [];
   const customerLoadResults: CustomerLoadResult[] = [];
+
+ 
 
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
