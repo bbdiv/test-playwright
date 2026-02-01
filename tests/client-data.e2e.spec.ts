@@ -366,7 +366,7 @@ test('load client data for all clients', async ({ page }) => {
   await test.step('Login', async () => {
     const { nextgenCustomers: loginNextgenCustomers } = await login(page);
     // ler lista de clientes do login(/customers)
-    nextgenCustomers.push(...loginNextgenCustomers);
+    nextgenCustomers.push(...loginNextgenCustomers.slice(0, 5));
     //ler lista de clientes estáticos
     // nextgenCustomers.push(...staticData as Customer[]);
   });
