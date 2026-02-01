@@ -68,7 +68,11 @@ const SELECTORS = {
   },
   customerDataTable: '[data-row-key]',
   // Ant Design empty state: page rendered but list is empty.
-  emptyStateImage: '.ant-empty-image'
+  emptyStateImage: '.ant-empty-image',
+  directoriesPage: {
+    trigger: 'a[href="/projetos/directories"]',
+    triggerShortcut: 'Ctrl+Shift+1'
+  }
 };
 
 const SUBFOLDER_API_PARTIAL_URL = '/subfolder';
@@ -344,6 +348,12 @@ async function checkRecentActions(page: Page): Promise<void> {
   await page.locator(SELECTORS.recentActionsPage.logCard).first().waitFor({ state: 'visible', timeout: 5_000 });
 }
 
+async function gobackToDirectoriesPage(page: Page): Promise<void> {
+  const link = page.locator(SELECTORS.directoriesPage.trigger);
+  await link.waitFor({ state: 'visible', timeout: 5_000 });
+  await link.click();
+}
+
 
 
 
@@ -375,6 +385,7 @@ test('load client data for all clients', async ({ page }) => {
         await checkReportsPage(page);
         await checkRecentActions(page);
 
+        await gobackToDirectoriesPage(page);
 
 
         const finishedAt = new Date();
